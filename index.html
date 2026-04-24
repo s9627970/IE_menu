@@ -130,8 +130,11 @@
                 alert('請先輸入數字！');
                 return;
             }
+            
+            // 將輸入轉為字串，並確保它至少有 4 位數，不足的部分在前面補 '0'
+            const paddedId = iconId.toString().padStart(4, '0');
 
-            const imgUrl = `https://d1h5mn9kk900cf.cloudfront.net/toswebsites/gallery/icons/${iconId}.jpg`;
+            const imgUrl = `https://d1h5mn9kk900cf.cloudfront.net/toswebsites/gallery/icons/${paddedId}.jpg`;
             
             const img = new Image();
             img.src = imgUrl;
@@ -146,7 +149,7 @@
 
             // 處理圖片載入失敗的情況
             img.onerror = function() {
-                alert(`找不到編號 ${iconId} 的圖片！`);
+                alert(`找不到編號 ${paddedId} 的圖片！`);
                 img.remove();
             };
 
