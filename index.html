@@ -125,39 +125,46 @@
 
         // 新增圖片按鈕事件
         addBtn.addEventListener('click', () => {
-            const iconId = inputField.value.trim();
-            if (!iconId) {
+            let rawInput = inputField.value.trim();
+            
+            if (!rawInput) {
                 alert('請先輸入數字！');
                 return;
             }
-            
-            // 將輸入轉為字串，並確保它至少有 4 位數，不足的部分在前面補 '0'
-            const paddedId = iconId.toString().padStart(4, '0');
 
-            const imgUrl = `https://d1h5mn9kk900cf.cloudfront.net/toswebsites/gallery/icons/${paddedId}.jpg`;
-            
+            let imgUrl = "";
+            let finalId = "";
+
+            // 邏輯判斷：如果編號大於等於 20001 (或字串開頭為 "2000")
+            if (parseInt(rawInput) >= 20001) {
+                finalId = rawInput; // 不需要額外補零
+                imgUrl = `https://tinghan33704.github.io/tos-tools/src/img/monster/${finalId}.png`;
+            } else {
+                // 原本的四位數補零邏輯
+                finalId = rawInput.toString().padStart(4, '0');
+                imgUrl = `https://d1h5mn9kk900cf.cloudfront.net/toswebsites/gallery/icons/${finalId}.jpg`;
+            }
+
             const img = new Image();
             img.src = imgUrl;
             img.className = 'board-item';
             
-            // 隨機初始位置 (避免圖片全疊在一起)
+            // 設定隨機初始位置
             const randomTop = Math.floor(Math.random() * (window.innerHeight - 200)) + 100;
             const randomLeft = Math.floor(Math.random() * (window.innerWidth - 200)) + 50;
             
             img.style.top = `${randomTop}px`;
             img.style.left = `${randomLeft}px`;
 
-            // 處理圖片載入失敗的情況
             img.onerror = function() {
-                alert(`找不到編號 ${paddedId} 的圖片！`);
+                alert(`讀取失敗！\n編號：${finalId}\n路徑：${imgUrl}`);
                 img.remove();
             };
 
-            // 圖片載入成功後加入黑板並綁定拖曳事件
             img.onload = function() {
                 blackboard.appendChild(img);
                 makeDraggable(img);
-                inputField.value = ''; // 清空輸入框
+                inputField.value = ''; 
             };
         });
 
