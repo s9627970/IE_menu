@@ -12,6 +12,7 @@
             height: 100%;
             overflow: hidden;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none; /* 避免選取框操作時選中文字 */
         }
 
         /* 黑板主區域 */
@@ -19,12 +20,10 @@
             width: 100vw;
             height: 100vh;
             position: relative;
-            /* 這裡可以換成你的指定背景圖片 */
             background-color: #2c4a34; 
             background-image: url('YOUR_BACKGROUND_IMAGE_URL.jpg'); 
             background-size: cover;
             background-position: center;
-            /* 加入一點黑板紋理的備用樣式 */
             box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
         }
 
@@ -38,8 +37,12 @@
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
             z-index: 100;
+        }
+
+        .control-row {
             display: flex;
             gap: 10px;
+            align-items: center;
         }
 
         input[type="number"] {
@@ -47,38 +50,79 @@
             font-size: 16px;
             border: 1px solid #ccc;
             border-radius: 4px;
-            width: 150px;
+            width: 160px;
         }
 
         button {
             padding: 8px 15px;
-            font-size: 16px;
+            font-size: 14px;
             background-color: #4CAF50;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
             transition: background 0.3s;
+            white-space: nowrap;
         }
 
-        button:hover {
-            background-color: #45a049;
-        }
+        button:hover { background-color: #45a049; }
+        #export-btn { background-color: #2196F3; }
+        #export-btn:hover { background-color: #0b7dda; }
+        #import-btn { background-color: #ff9800; }
+        #import-btn:hover { background-color: #e68a00; }
 
-        /* 拖曳的圖片 */
-        .board-item {
+        /* 所有可拖曳的共通樣式 */
+        .draggable-item {
             position: absolute;
-            width: 100px; /* 可根據需求調整圖片預設大小 */
             cursor: grab;
-            user-select: none;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+
+        .draggable-item:active { cursor: grabbing; }
+
+        /* 點菜圖片的樣式 */
+        .board-item {
+            width: 100px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.4);
             border-radius: 8px;
-            transition: transform 0.1s;
+            z-index: 10;
         }
 
-        .board-item:active {
-            cursor: grabbing;
-            transform: scale(1.05); /* 拖曳時稍微放大 */
+        /* 可縮放字體圖片的專屬樣式 */
+        .resizable-item {
+            /* 移除這裡原本的 resize: both; */
+            overflow: hidden;
+            z-index: 5;
+            border: 2px dashed transparent;
+        }
+
+        /* 新增這一段：當被選取時才開啟右下角縮放功能 */
+        .resizable-item.selected {
+            resize: both; 
+        }
+
+        .resizable-item:hover { border-color: rgba(255, 255, 255, 0.5); }
+        
+        .resizable-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            pointer-events: none; /* 讓滑鼠事件穿透到外層容器，確保拖曳正常運作 */
+        }
+
+        /* 選取狀態與選取框 */
+        .selected {
+            outline: 4px solid #ffeb3b; /* 選中時的黃色高光 */
+            box-shadow: 0 0 15px rgba(255, 235, 59, 0.8);
+        }
+
+        .selection-box {
+            position: absolute;
+            border: 1px solid #2196F3;
+            background-color: rgba(33, 150, 243, 0.2);
+            z-index: 999;
+            pointer-events: none;
+            display: none;
         }
 
         /* 右下角垃圾桶 */
@@ -110,8 +154,20 @@
 
     <div id="blackboard">
         <div id="control-panel">
-            <input type="number" id="icon-id" placeholder="輸入數字 (例如 2254)">
-            <button id="add-btn">新增圖片</button>
+            <div class="control-row">
+                <input type="number" id="icon-id" placeholder="輸入數字 (例如 2254)">
+                <button id="add-btn">新增</button>
+                <button id="export-btn">匯出</button>
+                <button id="import-btn">匯入</button>
+                <input type="file" id="file-input" accept=".txt" style="display: none;">
+            </div>
+        </div>
+
+        <div id="font1" class="resizable-item draggable-item" style="top: 100px; left: 20px; width: 350px; height: 60px;">
+            <img src="font1.png" alt="Font 1">
+        </div>
+        <div id="font2" class="resizable-item draggable-item" style="top: 180px; left: 20px; width: 350px; height: 60px;">
+            <img src="font2.png" alt="Font 2">
         </div>
 
         <div id="trash-can">🗑️</div>
@@ -122,127 +178,225 @@
         const addBtn = document.getElementById('add-btn');
         const inputField = document.getElementById('icon-id');
         const trashCan = document.getElementById('trash-can');
+        const exportBtn = document.getElementById('export-btn');
+        const importBtn = document.getElementById('import-btn');
+        const fileInput = document.getElementById('file-input');
 
-        // 新增圖片按鈕事件
-        addBtn.addEventListener('click', () => {
-            let rawInput = inputField.value.trim();
-            
-            if (!rawInput) {
-                alert('請先輸入數字！');
-                return;
-            }
+        // 初始化滑鼠框選框
+        const selectionBox = document.createElement('div');
+        selectionBox.className = 'selection-box';
+        blackboard.appendChild(selectionBox);
 
+        // --- 圖片生成函數 ---
+        function createBoardImage(rawId, posX, posY) {
             let imgUrl = "";
             let finalId = "";
 
-            // 邏輯判斷：如果編號大於等於 20001 (或字串開頭為 "2000")
-            if (parseInt(rawInput) >= 20001) {
-                finalId = rawInput; // 不需要額外補零
+            if (parseInt(rawId) >= 20001) {
+                finalId = rawId.toString();
                 imgUrl = `https://tinghan33704.github.io/tos-tools/src/img/monster/${finalId}.png`;
             } else {
-                // 原本的四位數補零邏輯
-                finalId = rawInput.toString().padStart(4, '0');
+                finalId = rawId.toString().padStart(4, '0');
                 imgUrl = `https://d1h5mn9kk900cf.cloudfront.net/toswebsites/gallery/icons/${finalId}.jpg`;
             }
 
             const img = new Image();
             img.src = imgUrl;
-            img.className = 'board-item';
+            img.className = 'board-item draggable-item'; // 加入共用的 draggable-item 類別
+            img.dataset.iconId = finalId; 
             
-            // 設定隨機初始位置
-            const randomTop = Math.floor(Math.random() * (window.innerHeight - 200)) + 100;
-            const randomLeft = Math.floor(Math.random() * (window.innerWidth - 200)) + 50;
-            
-            img.style.top = `${randomTop}px`;
-            img.style.left = `${randomLeft}px`;
+            img.style.left = `${posX}px`;
+            img.style.top = `${posY}px`;
 
-            img.onerror = function() {
-                alert(`讀取失敗！\n編號：${finalId}\n路徑：${imgUrl}`);
+            img.onload = () => blackboard.appendChild(img);
+            img.onerror = () => {
+                alert(`讀取失敗！\n編號：${finalId}`);
                 img.remove();
             };
-
-            img.onload = function() {
-                blackboard.appendChild(img);
-                makeDraggable(img);
-                inputField.value = ''; 
-            };
-        });
-
-        // 支援 Enter 鍵新增
-        inputField.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') addBtn.click();
-        });
-
-        // 拖曳功能核心邏輯
-        function makeDraggable(element) {
-            let isDragging = false;
-            let startX, startY, initialX, initialY;
-
-            element.addEventListener('mousedown', dragStart);
-
-            function dragStart(e) {
-                e.preventDefault(); // 防止預設拖曳圖片行為
-                isDragging = true;
-                
-                // 記錄滑鼠點擊的初始位置
-                startX = e.clientX;
-                startY = e.clientY;
-                
-                // 記錄圖片當前的 CSS left / top
-                initialX = element.offsetLeft;
-                initialY = element.offsetTop;
-                
-                // 將目前拖曳的圖片移到最上層
-                element.style.zIndex = 1000;
-
-                document.addEventListener('mousemove', drag);
-                document.addEventListener('mouseup', dragEnd);
-            }
-
-            function drag(e) {
-                if (!isDragging) return;
-
-                // 計算移動距離
-                const dx = e.clientX - startX;
-                const dy = e.clientY - startY;
-
-                // 更新圖片位置
-                element.style.left = `${initialX + dx}px`;
-                element.style.top = `${initialY + dy}px`;
-
-                // 檢查是否拖曳到垃圾桶上方 (用於視覺回饋)
-                if (isOverTrash(e.clientX, e.clientY)) {
-                    trashCan.classList.add('hovered');
-                } else {
-                    trashCan.classList.remove('hovered');
-                }
-            }
-
-            function dragEnd(e) {
-                if (!isDragging) return;
-                isDragging = false;
-                element.style.zIndex = 10; // 恢復預設層級
-
-                document.removeEventListener('mousemove', drag);
-                document.removeEventListener('mouseup', dragEnd);
-                trashCan.classList.remove('hovered');
-
-                // 檢查放開時是否在垃圾桶範圍內
-                if (isOverTrash(e.clientX, e.clientY)) {
-                    element.remove(); // 移除圖片
-                }
-            }
         }
 
-        // 判斷滑鼠座標是否在垃圾桶範圍內
+        // --- UI 按鈕事件 ---
+        addBtn.addEventListener('click', () => {
+            let rawInput = inputField.value.trim();
+            if (!rawInput) return alert('請先輸入數字！');
+            const randomTop = Math.floor(Math.random() * (window.innerHeight - 200)) + 50;
+            const randomLeft = 450; 
+            createBoardImage(rawInput, randomLeft, randomTop);
+            inputField.value = ''; 
+        });
+
+        inputField.addEventListener('keypress', (e) => { if (e.key === 'Enter') addBtn.click(); });
+
+        exportBtn.addEventListener('click', () => {
+            const items = document.querySelectorAll('.board-item');
+            if (items.length === 0) return alert('黑板上沒有圖片可以匯出喔！');
+            const ids = Array.from(items).map(img => img.dataset.iconId);
+            const blob = new Blob([ids.join(',')], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'menu.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        // 匯入與動態排列邏輯
+        importBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const ids = event.target.result.split(',').map(id => id.trim()).filter(id => id !== '');
+                if (ids.length === 0) return;
+
+                // 抓取 font2 目前的位置
+                const font2 = document.getElementById('font2');
+                const startX = font2.offsetLeft; // 與 font2 齊平
+                const startY = font2.offsetTop + font2.offsetHeight + 10; // 在 font2 正下方 10px 處
+                
+                const spacingX = 110; 
+                const spacingY = 110; 
+                const maxRight = window.innerWidth - 110; // 視窗右側邊界防溢出
+
+                let currentX = startX;
+                let currentY = startY;
+
+                ids.forEach(id => {
+                    // 如果超出視窗寬度，自動換行
+                    if (currentX > maxRight && currentX !== startX) {
+                        currentX = startX;
+                        currentY += spacingY;
+                    }
+                    createBoardImage(id, currentX, currentY);
+                    currentX += spacingX;
+                });
+            };
+            reader.readAsText(file);
+            fileInput.value = ''; 
+        });
+
+        // --- 全域拖曳與多選系統 ---
+        let isDragging = false;
+        let isSelecting = false;
+        let dragStartX, dragStartY, selStartX, selStartY;
+        let draggedItems = [];
+
+        document.addEventListener('mousedown', (e) => {
+            const item = e.target.closest('.draggable-item');
+            
+            // 情況 1：點擊到可拖曳的圖片
+            if (item) {
+                // 如果點擊的是字體圖片的「右下角縮放區域」，則放行讓瀏覽器處理縮放
+                if (item.classList.contains('resizable-item')) {
+                    if (e.offsetX >= item.offsetWidth - 20 && e.offsetY >= item.offsetHeight - 20) {
+                        return; 
+                    }
+                }
+                
+                e.preventDefault(); // 阻擋原生的圖片拖曳虛影
+
+                // 如果點擊的圖片還沒被選取，就清除其他選取，單獨選中它
+                if (!item.classList.contains('selected')) {
+                    document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+                    item.classList.add('selected');
+                }
+
+                isDragging = true;
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+
+                // 記錄所有被選中圖片的初始位置
+                draggedItems = Array.from(document.querySelectorAll('.selected')).map(el => {
+                    el.style.zIndex = 1000; // 拖曳時移至最上層
+                    return { element: el, initialLeft: el.offsetLeft, initialTop: el.offsetTop };
+                });
+            } 
+            // 情況 2：點擊到黑板空白處，開始畫框多選
+            else if (e.target.id === 'blackboard') {
+                isSelecting = true;
+                selStartX = e.clientX;
+                selStartY = e.clientY;
+                selectionBox.style.left = selStartX + 'px';
+                selectionBox.style.top = selStartY + 'px';
+                selectionBox.style.width = '0px';
+                selectionBox.style.height = '0px';
+                selectionBox.style.display = 'block';
+
+                // 清除之前的選取
+                document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            // 處理拖曳群組
+            if (isDragging) {
+                const dx = e.clientX - dragStartX;
+                const dy = e.clientY - dragStartY;
+
+                draggedItems.forEach(drag => {
+                    drag.element.style.left = `${drag.initialLeft + dx}px`;
+                    drag.element.style.top = `${drag.initialTop + dy}px`;
+                });
+
+                // 垃圾桶高亮判定 (只要滑鼠位置進入垃圾桶)
+                trashCan.classList.toggle('hovered', isOverTrash(e.clientX, e.clientY));
+            } 
+            // 處理畫選取框
+            else if (isSelecting) {
+                const currentX = e.clientX;
+                const currentY = e.clientY;
+                const left = Math.min(selStartX, currentX);
+                const top = Math.min(selStartY, currentY);
+                const width = Math.abs(currentX - selStartX);
+                const height = Math.abs(currentY - selStartY);
+
+                selectionBox.style.left = left + 'px';
+                selectionBox.style.top = top + 'px';
+                selectionBox.style.width = width + 'px';
+                selectionBox.style.height = height + 'px';
+
+                // 計算交集：找出被選取框覆蓋的圖片
+                const rect1 = selectionBox.getBoundingClientRect();
+                document.querySelectorAll('.draggable-item').forEach(item => {
+                    const rect2 = item.getBoundingClientRect();
+                    const overlap = !(rect1.right < rect2.left || rect1.left > rect2.right || rect1.bottom < rect2.top || rect1.top > rect2.bottom);
+                    
+                    if (overlap) item.classList.add('selected');
+                    else item.classList.remove('selected');
+                });
+            }
+        });
+
+        document.addEventListener('mouseup', (e) => {
+            if (isDragging) {
+                isDragging = false;
+                const overTrash = isOverTrash(e.clientX, e.clientY);
+                trashCan.classList.remove('hovered');
+
+                draggedItems.forEach(drag => {
+                    // 恢復正確的 z-index 層級 (菜單圖片10，字體圖片5)
+                    drag.element.style.zIndex = drag.element.classList.contains('board-item') ? 10 : 5;
+                    
+                    // 如果在垃圾桶上方放開，且該物件是「菜單圖片」則刪除 (保護字體圖片不被誤刪)
+                    if (overTrash && drag.element.classList.contains('board-item')) {
+                        drag.element.remove();
+                    }
+                });
+                draggedItems = [];
+            }
+
+            if (isSelecting) {
+                isSelecting = false;
+                selectionBox.style.display = 'none';
+            }
+        });
+
+        // 判斷是否在垃圾桶上方
         function isOverTrash(mouseX, mouseY) {
             const rect = trashCan.getBoundingClientRect();
-            return (
-                mouseX >= rect.left &&
-                mouseX <= rect.right &&
-                mouseY >= rect.top &&
-                mouseY <= rect.bottom
-            );
+            return (mouseX >= rect.left && mouseX <= rect.right && mouseY >= rect.top && mouseY <= rect.bottom);
         }
     </script>
 </body>
