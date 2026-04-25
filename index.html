@@ -148,6 +148,98 @@
             background-color: rgba(255, 76, 76, 0.3);
             transform: scale(1.1);
         }
+
+        /* 抽獎轉盤按鈕 */
+        #wheel-icon {
+            position: absolute;
+            bottom: 30px;
+            right: 130px; /* 放在垃圾桶(30px + 寬度80px + 間距20px)的左邊 */
+            width: 80px;
+            height: 80px;
+            background-color: rgba(0, 0, 0, 0.6);
+            border: 3px dashed #ffeb3b;
+            border-radius: 50%; /* 圓形 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            cursor: pointer;
+            z-index: 90;
+            transition: all 0.3s;
+        }
+
+        #wheel-icon:hover {
+            background-color: rgba(255, 235, 59, 0.3);
+            transform: scale(1.1) rotate(15deg);
+        }
+
+        /* 轉盤彈出視窗 (預設隱藏) */
+        #wheel-modal {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 2000;
+            display: none; /* 預設隱藏 */
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            text-align: center;
+            position: relative;
+            width: 300px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 10px; right: 15px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #888;
+        }
+
+        .close-btn:hover { color: #333; }
+
+        /* 轉盤顯示區 */
+        #wheel-spinner {
+            width: 150px; height: 150px;
+            margin: 20px auto;
+            border-radius: 50%;
+            border: 5px solid #ff9800;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            font-weight: bold;
+            color: #333;
+            background: #fff3e0;
+            overflow: hidden;
+        }
+
+        /* 抽獎動畫特效 */
+        .spinning {
+            animation: spinFlash 0.1s infinite;
+        }
+
+        @keyframes spinFlash {
+            0% { background: #fff3e0; }
+            50% { background: #ffe0b2; }
+            100% { background: #fff3e0; }
+        }
+
+        #start-draw-btn {
+            width: 100%;
+            font-size: 18px;
+            padding: 10px;
+            background-color: #f44336;
+        }
+        #start-draw-btn:hover { background-color: #d32f2f; }
+        #start-draw-btn:disabled { background-color: #ccc; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -171,6 +263,20 @@
         </div>
 
         <div id="trash-can">🗑️</div>
+        <div id="wheel-icon" title="隨機抽菜">🎡</div>
+
+        <div id="wheel-modal">
+            <div class="modal-content">
+                <span class="close-btn" id="close-modal">&times;</span>
+                <h2>今晚吃什麼？</h2>
+                <div id="wheel-spinner">
+                    <span id="spinner-text">❓</span>
+                    <img id="spinner-img" src="" alt="抽獎中" style="display: none; width: 100%; height: 100%; object-fit: contain; border-radius: 50%;">
+                </div>
+                <button id="start-draw-btn">開始抽獎</button>
+                <div id="draw-result" style="margin-top: 15px; font-weight: bold; color: #f44336; min-height: 24px;"></div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -398,6 +504,105 @@
             const rect = trashCan.getBoundingClientRect();
             return (mouseX >= rect.left && mouseX <= rect.right && mouseY >= rect.top && mouseY <= rect.bottom);
         }
+
+        // --- 抽獎轉盤系統 ---
+        const wheelIcon = document.getElementById('wheel-icon');
+        const wheelModal = document.getElementById('wheel-modal');
+        const closeModal = document.getElementById('close-modal');
+        const startDrawBtn = document.getElementById('start-draw-btn');
+        const wheelSpinner = document.getElementById('wheel-spinner');
+        const drawResult = document.getElementById('draw-result');
+
+        // 新增：抓取轉盤內的文字與圖片元素
+        const spinnerText = document.getElementById('spinner-text');
+        const spinnerImg = document.getElementById('spinner-img');
+
+        // 開啟/關閉視窗
+        wheelIcon.addEventListener('click', () => {
+            wheelModal.style.display = 'flex';
+            // 每次打開時重置為問號
+            spinnerText.style.display = 'block';
+            spinnerImg.style.display = 'none';
+            drawResult.innerText = '';
+        });
+
+        closeModal.addEventListener('click', () => {
+            wheelModal.style.display = 'none';
+        });
+
+        // 點擊開始抽獎
+        startDrawBtn.addEventListener('click', () => {
+            const items = document.querySelectorAll('.board-item');
+            if (items.length === 0) {
+                alert('黑板上沒有菜色可以抽喔！請先新增或匯入。');
+                return;
+            }
+
+            // 鎖定按鈕與狀態
+            startDrawBtn.disabled = true;
+            wheelSpinner.classList.add('spinning');
+            drawResult.innerText = '轉動中...';
+            
+            // 切換顯示模式：隱藏問號，顯示圖片
+            spinnerText.style.display = 'none';
+            spinnerImg.style.display = 'block';
+            
+            let counter = 0;
+            const spinDuration = 20; // 轉動次數
+
+            // 模擬轉盤圖片快速閃爍
+            const spinInterval = setInterval(() => {
+                const randomTempItem = items[Math.floor(Math.random() * items.length)];
+                spinnerImg.src = randomTempItem.src; // 快速替換圖片網址
+                counter++;
+
+                if (counter > spinDuration) {
+                    clearInterval(spinInterval);
+                    wheelSpinner.classList.remove('spinning');
+                    
+                    // 決定最終中獎者
+                    const winnerIndex = Math.floor(Math.random() * items.length);
+                    const winnerItem = items[winnerIndex];
+                    
+                    spinnerImg.src = winnerItem.src; // 轉盤定格在中獎圖片
+                    drawResult.innerText = `恭喜抽出：${winnerItem.dataset.iconId}！`;
+
+                    // --- 精準對齊 font1 的中心點 ---
+                    const font1 = document.getElementById('font1');
+                    
+                    // X軸：放在 font1 右邊間隔 30px 處
+                    const targetLeft = font1.offsetLeft + font1.offsetWidth + 30;
+                    
+                    // Y軸置中公式：font1 的中心點 Y 座標 - (中獎圖片高度的一半)
+                    const font1CenterY = font1.offsetTop + (font1.offsetHeight / 2);
+                    const winnerItemHeight = winnerItem.offsetHeight; 
+                    const targetTop = font1CenterY - (winnerItemHeight / 2); 
+
+                    // 執行飛行動畫
+                    winnerItem.style.transition = 'left 0.8s ease-in-out, top 0.8s ease-in-out';
+                    winnerItem.style.left = `${targetLeft}px`;
+                    winnerItem.style.top = `${targetTop}px`;
+                    winnerItem.style.zIndex = 1000;
+
+                    // 取消其他選取，將中獎圖高光顯示
+                    document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+                    winnerItem.classList.add('selected');
+
+                    // 動畫收尾
+                    setTimeout(() => {
+                        winnerItem.style.transition = 'transform 0.1s, box-shadow 0.1s';
+                        startDrawBtn.disabled = false;
+                        
+                        // 延遲 1.5 秒後自動關閉抽獎視窗
+                        setTimeout(() => {
+                            wheelModal.style.display = 'none';
+                        }, 1500);
+                        
+                    }, 800);
+                }
+            }, 50); // 每 50 毫秒跳動一次
+        });
+
     </script>
 </body>
 </html>
