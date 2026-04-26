@@ -50,7 +50,7 @@
             font-size: 16px;
             border: 1px solid #ccc;
             border-radius: 4px;
-            width: 160px;
+            width: 170px;
         }
 
         button {
@@ -82,10 +82,11 @@
 
         /* 點菜圖片的樣式 */
         .board-item {
-            width: 100px;
+            /* 移除原有的 width: 100px; 交由 JS 動態給予，以利縮放 */
             box-shadow: 0 4px 8px rgba(0,0,0,0.4);
             border-radius: 8px;
             z-index: 10;
+            background-color: rgba(255, 255, 255, 0.2); /* 加一點底色避免透明圖縮放時破圖感 */
         }
 
         /* 可縮放字體圖片的專屬樣式 */
@@ -303,21 +304,30 @@
                 imgUrl = `https://tinghan33704.github.io/tos-tools/src/img/monster/${finalId}.png`;
             } else {
                 finalId = rawId.toString().padStart(4, '0');
-                imgUrl = `https://d1h5mn9kk900cf.cloudfront.net/toswebsites/gallery/icons/${finalId}.jpg`;
+                imgUrl = `https://tinghan33704.github.io/tos-tools/src/img/monster/${finalId}.png`;
             }
 
+            // 改用 div 作為外層容器，並加上 resizable-item 讓它繼承點擊後才可縮放的特性
+            const container = document.createElement('div');
+            container.className = 'board-item draggable-item resizable-item'; 
+            container.dataset.iconId = finalId; 
+            
+            container.style.left = `${posX}px`;
+            container.style.top = `${posY}px`;
+            // 設定初始寬高
+            container.style.width = '100px';
+            container.style.height = '100px';
+
+            // 建立圖片本體
             const img = new Image();
             img.src = imgUrl;
-            img.className = 'board-item draggable-item'; // 加入共用的 draggable-item 類別
-            img.dataset.iconId = finalId; 
             
-            img.style.left = `${posX}px`;
-            img.style.top = `${posY}px`;
+            // 將圖片放進容器中
+            container.appendChild(img);
 
-            img.onload = () => blackboard.appendChild(img);
+            img.onload = () => blackboard.appendChild(container); // 圖片載入完成才將容器上黑板
             img.onerror = () => {
                 alert(`讀取失敗！\n編號：${finalId}`);
-                img.remove();
             };
         }
 
@@ -553,7 +563,9 @@
             // 模擬轉盤圖片快速閃爍
             const spinInterval = setInterval(() => {
                 const randomTempItem = items[Math.floor(Math.random() * items.length)];
-                spinnerImg.src = randomTempItem.src; // 快速替換圖片網址
+                
+                // 修改這裡：因為 items 變成 div 容器了，要往內找 img 標籤來拿圖片網址
+                spinnerImg.src = randomTempItem.querySelector('img').src; 
                 counter++;
 
                 if (counter > spinDuration) {
@@ -564,7 +576,8 @@
                     const winnerIndex = Math.floor(Math.random() * items.length);
                     const winnerItem = items[winnerIndex];
                     
-                    spinnerImg.src = winnerItem.src; // 轉盤定格在中獎圖片
+                    // 修改這裡：同樣往內找 img 標籤
+                    spinnerImg.src = winnerItem.querySelector('img').src; 
                     drawResult.innerText = `恭喜抽出：${winnerItem.dataset.iconId}！`;
 
                     // --- 精準對齊 font1 的中心點 ---
