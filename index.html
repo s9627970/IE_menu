@@ -536,7 +536,7 @@
             searchResults.querySelectorAll('.search-result-item').forEach(item => {
                 item.addEventListener('click', () => {
                     addCardById(item.dataset.id);
-                    searchInput.value = `${item.dataset.id} ${item.dataset.name}`;
+                    searchInput.value = '';
                     searchResults.style.display = 'none';
                 });
             });
@@ -558,7 +558,7 @@
 
             const target = exactById || matches[0];
             addCardById(target.id);
-            searchInput.value = `${target.id} ${target.name}`;
+            searchInput.value = '';
             renderSearchResults();
         }
 
