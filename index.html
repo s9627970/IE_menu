@@ -241,19 +241,116 @@
         }
         #start-draw-btn:hover { background-color: #d32f2f; }
         #start-draw-btn:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        /* 搜尋與建議清單 */
+        .search-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        #icon-id {
+            padding: 8px 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 240px;
+            box-sizing: border-box;
+        }
+
+        #search-results {
+            display: none;
+            width: 100%;
+            max-height: 320px;
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.98);
+            border: 1px solid rgba(0, 0, 0, 0.12);
+            border-radius: 8px;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+            margin-top: 8px;
+            padding: 6px;
+        }
+
+        .search-result-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.15s, transform 0.15s;
+        }
+
+        .search-result-item:hover {
+            background: rgba(33, 150, 243, 0.10);
+            transform: translateX(2px);
+        }
+
+        .search-result-thumb {
+            width: 42px;
+            height: 42px;
+            flex: 0 0 42px;
+            border-radius: 6px;
+            object-fit: contain;
+            background: #f4f4f4;
+            box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08);
+        }
+
+        .search-result-meta {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .search-result-id {
+            font-size: 12px;
+            color: #1565c0;
+            font-weight: 700;
+        }
+
+        .search-result-name {
+            font-size: 14px;
+            color: #222;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 240px;
+        }
+
+        .search-empty {
+            padding: 10px 8px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .search-hint {
+            margin-top: 6px;
+            font-size: 12px;
+            color: #555;
+        }
+
+        .action-row {
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
 
     <div id="blackboard">
         <div id="control-panel">
-            <div class="control-row">
-                <input type="number" id="icon-id" placeholder="輸入數字 (例如 2254)">
+            <div class="search-row">
+                <input type="text" id="icon-id" placeholder="搜尋編號或名字（例如 2254 / 莫莉）" autocomplete="off">
                 <button id="add-btn">新增</button>
+            </div>
+            <div id="search-results" aria-label="搜尋結果"></div>
+            <div id="search-status">正在載入名單...</div>
+            <div class="control-row action-row">
                 <button id="export-btn">匯出</button>
                 <button id="import-btn">匯入</button>
                 <input type="file" id="file-input" accept=".txt" style="display: none;">
             </div>
+            <div class="search-hint">可直接輸入編號或名字，下面會列出符合的縮圖、編號與名字。</div>
         </div>
 
         <div id="font1" class="resizable-item draggable-item" style="top: 100px; left: 20px; width: 350px; height: 60px;">
@@ -288,112 +385,204 @@
         const exportBtn = document.getElementById('export-btn');
         const importBtn = document.getElementById('import-btn');
         const fileInput = document.getElementById('file-input');
+        const searchResults = document.getElementById('search-results');
+        const CARD_DATABASE = [];
+        const CARD_NAME_SOURCE_URL = './card_name.txt';
+        const searchStatus = document.getElementById('search-status');
+        let cardDatabaseReady = false;
+
+        async function loadCardDatabase() {
+            try {
+                searchStatus.textContent = '正在載入名單...';
+                const response = await fetch(CARD_NAME_SOURCE_URL, { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const text = await response.text();
+                const cards = text
+                    .split(/?
+/)
+                    .map(line => line.trim())
+                    .filter(Boolean)
+                    .map(line => {
+                        const match = line.match(/^(\d+)\s+(.+)$/);
+                        if (!match) return null;
+                        return { id: match[1], name: match[2].trim() };
+                    })
+                    .filter(Boolean);
+
+                CARD_DATABASE.splice(0, CARD_DATABASE.length, ...cards);
+                cardDatabaseReady = true;
+                searchStatus.textContent = `名單已載入：${CARD_DATABASE.length} 筆`;
+                renderSearchResults();
+            } catch (error) {
+                console.error('載入 card_name.txt 失敗：', error);
+                cardDatabaseReady = false;
+                searchStatus.textContent = '名單載入失敗，請確認 card_name.txt 與網站在同一個 GitHub 專案中';
+            }
+        }
+
+        loadCardDatabase();
 
         // 初始化滑鼠框選框
         const selectionBox = document.createElement('div');
         selectionBox.className = 'selection-box';
         blackboard.appendChild(selectionBox);
 
-        // --- 圖片生成函數 ---
-        function createBoardImage(rawId, posX, posY) {
-            let imgUrl = "";
-            let finalId = "";
-
-            if (parseInt(rawId) >= 20001) {
-                finalId = rawId.toString();
-                imgUrl = `https://tinghan33704.github.io/tos-tools/src/img/monster/${finalId}.png`;
-            } else {
-                finalId = rawId.toString().padStart(4, '0');
-                imgUrl = `https://d1h5mn9kk900cf.cloudfront.net/toswebsites/gallery/icons/${finalId}.jpg`;
+        // --- 資料與搜尋函數 ---
+        function buildImageInfo(rawId) {
+            const rawText = String(rawId).trim();
+            const numericValue = Number(rawText);
+            if (!Number.isNaN(numericValue) && numericValue >= 20001) {
+                return {
+                    finalId: rawText,
+                    imgUrl: `https://tinghan33704.github.io/tos-tools/src/img/monster/${rawText}.png`
+                };
             }
+            const finalId = rawText.padStart(4, '0');
+            return {
+                finalId,
+                imgUrl: `https://d1h5mn9kk900cf.cloudfront.net/toswebsites/gallery/icons/${finalId}.jpg`
+            };
+        }
 
-            // 改用 div 作為外層容器，並加上 resizable-item 讓它繼承點擊後才可縮放的特性
+        function createBoardImage(rawId, posX, posY) {
+            const { finalId, imgUrl } = buildImageInfo(rawId);
+
             const container = document.createElement('div');
-            container.className = 'board-item draggable-item resizable-item'; 
-            container.dataset.iconId = finalId; 
-            
+            container.className = 'board-item draggable-item resizable-item';
+            container.dataset.iconId = finalId;
+
             container.style.left = `${posX}px`;
             container.style.top = `${posY}px`;
-            // 設定初始寬高
             container.style.width = '100px';
             container.style.height = '100px';
 
-            // 建立圖片本體
             const img = new Image();
             img.src = imgUrl;
-            
-            // 將圖片放進容器中
             container.appendChild(img);
 
-            img.onload = () => blackboard.appendChild(container); // 圖片載入完成才將容器上黑板
+            img.onload = () => blackboard.appendChild(container);
             img.onerror = () => {
                 alert(`讀取失敗！\n編號：${finalId}`);
             };
         }
 
-        // --- UI 按鈕事件 ---
-        addBtn.addEventListener('click', () => {
-            let rawInput = inputField.value.trim();
-            if (!rawInput) return alert('請先輸入數字！');
+        function normalizeQuery(value) {
+            return String(value).trim().toLowerCase();
+        }
+
+        function getMatchedCards(query) {
+            const q = normalizeQuery(query);
+            if (!q || !cardDatabaseReady) return [];
+
+            const isDigitsOnly = /^\d+$/.test(q);
+            const compactDigits = isDigitsOnly ? q.replace(/^0+/, '') || '0' : '';
+
+            return CARD_DATABASE.filter(card => {
+                const id = card.id.toLowerCase();
+                const idNoZero = id.replace(/^0+/, '') || '0';
+                const name = card.name.toLowerCase();
+
+                if (isDigitsOnly) {
+                    return id.includes(q) || idNoZero.includes(compactDigits);
+                }
+                return id.includes(q) || name.includes(q);
+            }).slice(0, 20);
+        }
+
+        function addCardById(id) {
             const randomTop = Math.floor(Math.random() * (window.innerHeight - 200)) + 50;
-            const randomLeft = 450; 
-            createBoardImage(rawInput, randomLeft, randomTop);
-            inputField.value = ''; 
-        });
+            const randomLeft = 450;
+            createBoardImage(id, randomLeft, randomTop);
+        }
 
-        inputField.addEventListener('keypress', (e) => { if (e.key === 'Enter') addBtn.click(); });
+        function renderSearchResults() {
+            const query = searchInput.value.trim();
+            const matches = getMatchedCards(query);
 
-        exportBtn.addEventListener('click', () => {
-            const items = document.querySelectorAll('.board-item');
-            if (items.length === 0) return alert('黑板上沒有圖片可以匯出喔！');
-            const ids = Array.from(items).map(img => img.dataset.iconId);
-            const blob = new Blob([ids.join(',')], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'menu.txt';
-            a.click();
-            URL.revokeObjectURL(url);
-        });
+            if (!cardDatabaseReady) {
+                searchResults.innerHTML = '<div class="search-empty">名單載入中，請稍候...</div>';
+                searchResults.style.display = 'block';
+                return;
+            }
 
-        // 匯入與動態排列邏輯
-        importBtn.addEventListener('click', () => fileInput.click());
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+            if (!query) {
+                searchResults.innerHTML = '';
+                searchResults.style.display = 'none';
+                return;
+            }
 
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const ids = event.target.result.split(',').map(id => id.trim()).filter(id => id !== '');
-                if (ids.length === 0) return;
+            if (matches.length === 0) {
+                searchResults.innerHTML = '<div class="search-empty">沒有找到符合的編號或名字</div>';
+                searchResults.style.display = 'block';
+                return;
+            }
 
-                // 抓取 font2 目前的位置
-                const font2 = document.getElementById('font2');
-                const startX = font2.offsetLeft; // 與 font2 齊平
-                const startY = font2.offsetTop + font2.offsetHeight + 10; // 在 font2 正下方 10px 處
-                
-                const spacingX = 110; 
-                const spacingY = 110; 
-                const maxRight = window.innerWidth - 110; // 視窗右側邊界防溢出
+            searchResults.innerHTML = matches.map(card => {
+                const { finalId, imgUrl } = buildImageInfo(card.id);
+                return `
+                    <div class="search-result-item" data-id="${card.id}" data-name="${card.name}">
+                        <img class="search-result-thumb" src="${imgUrl}" alt="${finalId} ${card.name}">
+                        <div class="search-result-meta">
+                            <div class="search-result-id">${finalId}</div>
+                            <div class="search-result-name">${card.name}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
 
-                let currentX = startX;
-                let currentY = startY;
+            searchResults.style.display = 'block';
 
-                ids.forEach(id => {
-                    // 如果超出視窗寬度，自動換行
-                    if (currentX > maxRight && currentX !== startX) {
-                        currentX = startX;
-                        currentY += spacingY;
-                    }
-                    createBoardImage(id, currentX, currentY);
-                    currentX += spacingX;
+            searchResults.querySelectorAll('.search-result-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    addCardById(item.dataset.id);
+                    searchInput.value = `${item.dataset.id} ${item.dataset.name}`;
+                    searchResults.style.display = 'none';
                 });
-            };
-            reader.readAsText(file);
-            fileInput.value = ''; 
+            });
+        }
+
+        function addFromSearchInput() {
+            const query = searchInput.value.trim();
+            if (!query) return alert('請先輸入編號或名字！');
+            if (!cardDatabaseReady) return alert('名單還在載入中，請稍候再試！');
+
+            const matches = getMatchedCards(query);
+            if (matches.length === 0) return alert('找不到符合的編號或名字！');
+
+            const normalizedInput = query.replace(/^0+/, '') || '0';
+            const exactById = CARD_DATABASE.find(card => {
+                const normalizedCardId = card.id.replace(/^0+/, '') || '0';
+                return card.id === query || normalizedCardId === normalizedInput;
+            });
+
+            const target = exactById || matches[0];
+            addCardById(target.id);
+            searchInput.value = `${target.id} ${target.name}`;
+            renderSearchResults();
+        }
+
+        // --- 搜尋與新增操作 ---
+        const searchInput = inputField;
+        searchInput.addEventListener('input', renderSearchResults);
+        searchInput.addEventListener('focus', renderSearchResults);
+
+        addBtn.addEventListener('click', addFromSearchInput);
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addFromSearchInput();
+            }
         });
 
-        // --- 全域拖曳與多選系統 ---
+        document.addEventListener('click', (e) => {
+            if (!document.getElementById('control-panel').contains(e.target)) {
+                searchResults.style.display = 'none';
+            }
+        });
+
+        // --- 全域拖曳與多選系統 ---        // --- 全域拖曳與多選系統 ---
         let isDragging = false;
         let isSelecting = false;
         let dragStartX, dragStartY, selStartX, selStartY;
