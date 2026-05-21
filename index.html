@@ -581,6 +581,58 @@
             }
         });
 
+
+        exportBtn.addEventListener('click', () => {
+            const items = document.querySelectorAll('.board-item');
+            if (items.length === 0) return alert('黑板上沒有圖片可以匯出喔！');
+            const ids = Array.from(items).map(img => img.dataset.iconId);
+            const blob = new Blob([ids.join(',')], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'menu.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        // 匯入與動態排列邏輯
+        importBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const ids = event.target.result.split(',').map(id => id.trim()).filter(id => id !== '');
+                if (ids.length === 0) return;
+
+                // 抓取 font2 目前的位置
+                const font2 = document.getElementById('font2');
+                const startX = font2.offsetLeft; // 與 font2 齊平
+                const startY = font2.offsetTop + font2.offsetHeight + 10; // 在 font2 正下方 10px 處
+                
+                const spacingX = 110; 
+                const spacingY = 110; 
+                const maxRight = window.innerWidth - 110; // 視窗右側邊界防溢出
+
+                let currentX = startX;
+                let currentY = startY;
+
+                ids.forEach(id => {
+                    // 如果超出視窗寬度，自動換行
+                    if (currentX > maxRight && currentX !== startX) {
+                        currentX = startX;
+                        currentY += spacingY;
+                    }
+                    createBoardImage(id, currentX, currentY);
+                    currentX += spacingX;
+                });
+            };
+            reader.readAsText(file);
+            fileInput.value = ''; 
+        });
+
+
         // --- 全域拖曳與多選系統 ---        // --- 全域拖曳與多選系統 ---
         let isDragging = false;
         let isSelecting = false;
