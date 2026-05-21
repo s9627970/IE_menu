@@ -342,21 +342,21 @@
             <div class="search-row">
                 <input type="text" id="icon-id" placeholder="搜尋編號或名字（例如 2254 / 莫莉）" autocomplete="off">
                 <button id="add-btn">新增</button>
+                <button id="export-btn">匯出</button>
+                <button id="import-btn">匯入</button>
             </div>
             <div id="search-results" aria-label="搜尋結果"></div>
             <div id="search-status">正在載入名單...</div>
             <div class="control-row action-row">
-                <button id="export-btn">匯出</button>
-                <button id="import-btn">匯入</button>
                 <input type="file" id="file-input" accept=".txt" style="display: none;">
             </div>
             <div class="search-hint">可直接輸入編號或名字，下面會列出符合的縮圖、編號與名字。</div>
         </div>
 
-        <div id="font1" class="resizable-item draggable-item" style="top: 100px; left: 20px; width: 350px; height: 60px;">
+        <div id="font1" class="resizable-item draggable-item" style="top: 100px; left: 20px; width: 350px; height: 100px;">
             <img src="font1.png" alt="Font 1">
         </div>
-        <div id="font2" class="resizable-item draggable-item" style="top: 180px; left: 20px; width: 350px; height: 60px;">
+        <div id="font2" class="resizable-item draggable-item" style="top: 180px; left: 20px; width: 350px; height: 150px;">
             <img src="font2.png" alt="Font 2">
         </div>
 
@@ -487,7 +487,7 @@
                     return id.includes(q) || idNoZero.includes(compactDigits);
                 }
                 return id.includes(q) || name.includes(q);
-            }).slice(0, 20);
+            });
         }
 
         function addCardById(id) {
