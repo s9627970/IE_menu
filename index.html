@@ -491,9 +491,11 @@
         }
 
         function addCardById(id) {
-            const randomTop = Math.floor(Math.random() * (window.innerHeight - 200)) + 50;
-            const randomLeft = 450;
-            createBoardImage(id, randomLeft, randomTop);
+            // 將座標改為你想要的固定數值
+            const fixedTop = 75;  // 這裡設定 Y 軸 (上下) 座標，數字越大越下面
+            const fixedLeft = 450; // 這裡設定 X 軸 (左右) 座標，數字越大越右邊
+            
+            createBoardImage(id, fixedLeft, fixedTop);
         }
 
         function renderSearchResults() {
