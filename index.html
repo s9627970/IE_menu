@@ -493,9 +493,11 @@
         }
 
         function addCardById(id) {
-            const randomTop = Math.floor(Math.random() * (window.innerHeight - 200)) + 50;
-            const randomLeft = 450;
-            createBoardImage(id, randomLeft, randomTop);
+            // 將座標改為你想要的固定數值
+            const fixedTop = 10;  // 這裡設定 Y 軸 (上下) 座標，數字越大越下面
+            const fixedLeft = 600; // 這裡設定 X 軸 (左右) 座標，數字越大越右邊
+            
+            createBoardImage(id, fixedLeft, fixedTop);
         }
 
         function renderSearchResults() {
@@ -610,8 +612,8 @@
 
                 // 抓取 font2 目前的位置
                 const font2 = document.getElementById('font2');
-                const startX = font2.offsetRight; // 與 font2 齊平
-                const startY = font2.offsetTop + font2.offsetHeight / 2; // 在 font2 正中間
+                const startX = font2.offsetLeft + font2.offsetWidth; // 計算出 font2 右側邊界，並往右加 30px 的間距
+                const startY = font2.offsetTop + font2.offsetHeight / 2; // 與 font2 的上方邊緣切齊，讓後續排版更整齊
                 
                 const spacingX = 110; 
                 const spacingY = 110; 
