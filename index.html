@@ -89,26 +89,28 @@
             background-color: transparent
         }
 
-        /* 可縮放字體圖片的專屬樣式 */
+        /* 1. 找到這裡，新增 height: auto !important; */
         .resizable-item {
-            /* 移除這裡原本的 resize: both; */
             overflow: hidden;
             z-index: 5;
             border: 2px dashed transparent;
+            height: auto !important; /* 強制高度由裡面的圖片撐起，忽略寫死的高度 */
         }
 
-        /* 新增這一段：當被選取時才開啟右下角縮放功能 */
+        /* 2. 找到這裡，將 resize: both; 改成 horizontal */
         .resizable-item.selected {
-            resize: both; 
+            resize: horizontal; /* 只允許拉動寬度，高度會自動等比例跟上 */
         }
 
+        /* (這個 hover 保持不變，不用改) */
         .resizable-item:hover { border-color: rgba(255, 255, 255, 0.5); }
-        
+
+        /* 3. 找到這裡，修改 height 並加上 display: block; */
         .resizable-item img {
             width: 100%;
-            height: 100%;
-            object-fit: contain;
-            pointer-events: none; /* 讓滑鼠事件穿透到外層容器，確保拖曳正常運作 */
+            height: auto; /* 從 100% 改成 auto，讓圖片維持真實原始比例 */
+            display: block; /* 新增這行，消除圖片標籤預設在底部產生的微小空隙 */
+            pointer-events: none;
         }
 
         /* 選取狀態與選取框 */
