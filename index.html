@@ -86,7 +86,7 @@
             box-shadow: 0 4px 8px rgba(0,0,0,0.4);
             border-radius: 8px;
             z-index: 10;
-            background-color: rgba(255, 255, 255, 0.2); /* 加一點底色避免透明圖縮放時破圖感 */
+            background-color: transparent
         }
 
         /* 可縮放字體圖片的專屬樣式 */
@@ -491,11 +491,9 @@
         }
 
         function addCardById(id) {
-            // 將座標改為你想要的固定數值
-            const fixedTop = 10;  // 這裡設定 Y 軸 (上下) 座標，數字越大越下面
-            const fixedLeft = 600; // 這裡設定 X 軸 (左右) 座標，數字越大越右邊
-            
-            createBoardImage(id, fixedLeft, fixedTop);
+            const randomTop = Math.floor(Math.random() * (window.innerHeight - 200)) + 50;
+            const randomLeft = 450;
+            createBoardImage(id, randomLeft, randomTop);
         }
 
         function renderSearchResults() {
