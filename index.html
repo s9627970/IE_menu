@@ -625,7 +625,7 @@
                 // 抓取 font2 目前的位置
                 const font2 = document.getElementById('font2');
                 const startX = font2.offsetLeft + font2.offsetWidth + 30; // 往右加 30px 的間距
-                const startY = font2.offsetTop; // 與 font2 的上方邊緣切齊
+                const startY = font2.offsetTop + font2.offsetHeight / 2 + imageSize / 2; // 與 font2 的上方邊緣切齊
                 
                 // --- 修改：根據輸入的大小動態計算間距 ---
                 const spacingX = imageSize + 10; // 每個圖片的間距 = 圖片寬度 + 10px 空白
