@@ -447,7 +447,7 @@
             };
         }
 
-        function createBoardImage(rawId, posX, posY) {
+        function createBoardImage(rawId, posX, posY, imgSize = 100) {
             const { finalId, imgUrl } = buildImageInfo(rawId);
 
             const container = document.createElement('div');
