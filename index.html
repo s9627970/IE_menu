@@ -456,8 +456,8 @@
 
             container.style.left = `${posX}px`;
             container.style.top = `${posY}px`;
-            container.style.width = '100px';
-            container.style.height = '100px';
+            container.style.width = `${imgSize}px`;  // 改成使用變數
+            container.style.height = `${imgSize}px`; // 改成使用變數
 
             const img = new Image();
             img.src = imgUrl;
@@ -605,6 +605,18 @@
             const file = e.target.files[0];
             if (!file) return;
 
+            // --- 新增：跳出視窗詢問使用者圖片大小 ---
+            const sizeInput = prompt('請輸入要匯入的圖片大小（例如：100）：', '100');
+            
+            // 如果使用者按取消，就清空檔案並中斷執行
+            if (sizeInput === null) {
+                fileInput.value = ''; 
+                return;
+            }
+            
+            // 確保輸入的是數字，如果亂輸則預設給 100
+            const imageSize = parseInt(sizeInput, 10) || 100;
+
             const reader = new FileReader();
             reader.onload = function(event) {
                 const ids = event.target.result.split(',').map(id => id.trim()).filter(id => id !== '');
@@ -612,12 +624,13 @@
 
                 // 抓取 font2 目前的位置
                 const font2 = document.getElementById('font2');
-                const startX = font2.offsetLeft + font2.offsetWidth; // 計算出 font2 右側邊界，並往右加 30px 的間距
-                const startY = font2.offsetTop + font2.offsetHeight / 2 - 50; // 與 font2 的上方邊緣切齊，讓後續排版更整齊
+                const startX = font2.offsetLeft + font2.offsetWidth + 30; // 往右加 30px 的間距
+                const startY = font2.offsetTop; // 與 font2 的上方邊緣切齊
                 
-                const spacingX = 110; 
-                const spacingY = 110; 
-                const maxRight = window.innerWidth - 110; // 視窗右側邊界防溢出
+                // --- 修改：根據輸入的大小動態計算間距 ---
+                const spacingX = imageSize + 10; // 每個圖片的間距 = 圖片寬度 + 10px 空白
+                const spacingY = imageSize + 10; // 每個圖片的間距 = 圖片高度 + 10px 空白
+                const maxRight = window.innerWidth - spacingX; // 動態計算視窗右側邊界防溢出
 
                 let currentX = startX;
                 let currentY = startY;
@@ -628,7 +641,8 @@
                         currentX = startX;
                         currentY += spacingY;
                     }
-                    createBoardImage(id, currentX, currentY);
+                    // 這裡多傳入第四個參數 imageSize
+                    createBoardImage(id, currentX, currentY, imageSize);
                     currentX += spacingX;
                 });
             };
